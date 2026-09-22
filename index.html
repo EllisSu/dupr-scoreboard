@@ -103,7 +103,7 @@
       flex: 1;
       padding: 0.6rem 0;
       text-align: center;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: 600;
       cursor: pointer;
       border-bottom: 2px solid transparent;
@@ -329,6 +329,163 @@
       border-color: #c0392b;
       color: #c0392b;
     }
+
+    /* Archives / 存檔 */
+    .section-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      margin-bottom: 0.5rem;
+    }
+
+    .save-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .save-row {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .text-input {
+      flex: 1;
+      min-width: 0;
+      font-family: inherit;
+      font-size: 0.85rem;
+      padding: 0.45rem 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .text-input:focus {
+      border-color: var(--accent);
+    }
+
+    .btn {
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 0.45rem 0.9rem;
+      border-radius: 6px;
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+
+    .btn:hover {
+      opacity: 0.85;
+    }
+
+    .btn-ghost {
+      background: none;
+      color: var(--muted);
+      border-color: var(--border);
+    }
+
+    .btn-ghost:hover {
+      opacity: 1;
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .btn-danger:hover {
+      border-color: #c0392b;
+      color: #c0392b;
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .archive-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.7rem 0.9rem;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .archive-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .archive-name {
+      font-size: 0.9rem;
+      font-weight: 600;
+      overflow-wrap: anywhere;
+    }
+
+    .archive-meta {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.15rem;
+    }
+
+    .archive-actions {
+      display: flex;
+      gap: 0.4rem;
+    }
+
+    .empty-hint {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.82rem;
+      padding: 1.5rem 0;
+    }
+
+    .hint {
+      font-size: 0.72rem;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-top: 0.5rem;
+    }
+
+    .share-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-top: 1.25rem;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+      transform: translateX(-50%) translateY(0.5rem);
+      background: var(--text);
+      color: var(--bg);
+      font-size: 0.82rem;
+      padding: 0.5rem 1.1rem;
+      border-radius: 999px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+      z-index: 50;
+    }
+
+    .toast.show {
+      opacity: 0.95;
+      transform: translateX(-50%) translateY(0);
+    }
   </style>
 </head>
 
@@ -340,12 +497,19 @@
       <button class="tab active" onclick="showPanel('matches')">賽程記分</button>
       <button class="tab" onclick="showPanel('ranking')">排名</button>
       <button class="tab" onclick="showPanel('players')">選手</button>
+      <button class="tab" onclick="showPanel('archives')">紀錄</button>
     </div>
 
     <div id="matches" class="panel active"></div>
     <div id="ranking" class="panel"></div>
     <div id="players" class="panel"></div>
+    <div id="archives" class="panel"></div>
   </div>
+
+  <!-- 放在 panel 之外，避免被 renderArchives() 的 innerHTML 重繪掉 -->
+  <input type="file" id="importFile" accept="application/json,.json" style="display:none"
+    onchange="importBackup(this)">
+  <div id="toast" class="toast"></div>
 
   <script>
     const players = {
@@ -362,15 +526,57 @@
     ];
 
     let scores = {};
+    let archives = [];
     try {
       const saved = localStorage.getItem('dupr_scores');
       if (saved) scores = JSON.parse(saved);
       const savedNames = localStorage.getItem('dupr_players');
       if (savedNames) Object.assign(players, JSON.parse(savedNames));
+      const savedArchives = localStorage.getItem('dupr_archives');
+      if (savedArchives) archives = normalizeArchives(JSON.parse(savedArchives));
     } catch (e) { }
 
     function saveScores() {
       try { localStorage.setItem('dupr_scores', JSON.stringify(scores)); } catch (e) { }
+    }
+
+    function saveArchives() {
+      try { localStorage.setItem('dupr_archives', JSON.stringify(archives)); } catch (e) { }
+    }
+
+    // 存檔名稱與匯入的資料屬於外部輸入，插入 innerHTML 前一律轉義
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g,
+        c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function pad2(n) { return String(n).padStart(2, '0'); }
+
+    function dateStamp(sep = '-', d = new Date()) {
+      return `${d.getFullYear()}${sep}${pad2(d.getMonth() + 1)}${sep}${pad2(d.getDate())}`;
+    }
+
+    function toast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => el.classList.remove('show'), 2200);
+    }
+
+    function download(filename, blob) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    // 已完成（雙方都填了分數）的場次數
+    function filledCount(sc) {
+      return matches.reduce((n, _, i) =>
+        n + ((sc[`${i}_1`] ?? '') !== '' && (sc[`${i}_2`] ?? '') !== '' ? 1 : 0), 0);
     }
 
     function showPanel(id) {
@@ -379,6 +585,7 @@
       document.getElementById(id).classList.add('active');
       event.target.classList.add('active');
       if (id === 'ranking') renderRanking();
+      if (id === 'archives') renderArchives();
     }
 
     function renderMatches() {
@@ -392,7 +599,7 @@
       <div class="match-row">
         <div class="team" data-team="1">
           <div class="team-codes">${m[0]} - ${m[1]}</div>
-          <div class="team-names">${players[m[0]]} / ${players[m[1]]}</div>
+          <div class="team-names">${esc(players[m[0]])} / ${esc(players[m[1]])}</div>
         </div>
         <input type="number" class="score-input" min="0" max="99"
           value="${s1}" oninput="updateScore(${i},1,this.value)"
@@ -403,7 +610,7 @@
           inputmode="numeric">
         <div class="team" data-team="2">
           <div class="team-codes">${m[2]} - ${m[3]}</div>
-          <div class="team-names">${players[m[2]]} / ${players[m[3]]}</div>
+          <div class="team-names">${esc(players[m[2]])} / ${esc(players[m[3]])}</div>
         </div>
       </div>
     </div>`;
@@ -438,15 +645,16 @@
       }
     }
 
-    function calcStats() {
+    // 預設算目前這場，也可帶入存檔的資料來重算（例如存檔卡片上的冠軍）
+    function calcStats(sc = scores, pl = players) {
       const stats = {};
       Object.keys(players).forEach(c => {
-        stats[c] = { code: c, name: players[c], wins: 0, losses: 0, pf: 0, pa: 0 };
+        stats[c] = { code: c, name: pl[c] ?? '', wins: 0, losses: 0, pf: 0, pa: 0 };
       });
 
       matches.forEach((m, i) => {
-        const s1 = scores[`${i}_1`];
-        const s2 = scores[`${i}_2`];
+        const s1 = sc[`${i}_1`];
+        const s2 = sc[`${i}_2`];
         if (s1 === undefined || s2 === undefined || s1 === '' || s2 === '') return;
         const n1 = Number(s1), n2 = Number(s2);
         const team1 = [m[0], m[1]], team2 = [m[2], m[3]];
@@ -487,7 +695,7 @@
         const me = s.code === 'E' ? ' class="me"' : '';
         return `<tr${me}>
       <td>${rankBadge}</td>
-      <td class="name-cell">${s.code} ${s.name}</td>
+      <td class="name-cell">${s.code} ${esc(s.name)}</td>
       <td>${s.wins}</td>
       <td>${s.losses}</td>
       <td>${s.pf}</td>
@@ -502,6 +710,10 @@
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>
+  <div class="share-row">
+    <button class="btn btn-ghost" onclick="copyRanking()">📋 複製排名文字</button>
+    <button class="btn btn-ghost" onclick="downloadRankingImage()">🖼️ 下載排名圖片</button>
+  </div>
   <div style="margin-top:1.25rem;padding:1rem;background:var(--card);border:1px solid var(--border);border-radius:10px;font-size:0.78rem;color:var(--muted);line-height:1.7;">
     <div style="font-weight:700;color:var(--text);margin-bottom:0.4rem;font-size:0.85rem;">欄位說明</div>
     <div><b style="color:var(--text)">勝</b>：該選手所在隊伍得分高於對手的場數</div>
@@ -531,11 +743,327 @@
         Object.entries(players).map(([c, n]) =>
           `<div class="player-chip">
         <span class="player-code">${c}</span>
-        <input class="player-input" value="${n}"
+        <input class="player-input" value="${esc(n)}"
           onchange="updatePlayer('${c}',this.value)"
           onblur="updatePlayer('${c}',this.value)">
       </div>`
         ).join('') + '</div>';
+    }
+
+    /* ---------- 存檔紀錄 ---------- */
+
+    // id 會被寫進 inline onclick，一律洗成安全字元；同時補齊缺漏欄位
+    function normalizeArchives(raw) {
+      if (!Array.isArray(raw)) return [];
+      return raw.map((a, i) => {
+        if (!a || typeof a !== 'object') return null;
+        const id = String(a.id ?? '').replace(/[^A-Za-z0-9_-]/g, '') || `${Date.now()}${i}`;
+        const pl = {};
+        Object.keys(players).forEach(c => {
+          pl[c] = typeof (a.players || {})[c] === 'string' ? a.players[c] : '';
+        });
+        return {
+          id,
+          name: String(a.name ?? '').slice(0, 60) || '未命名場次',
+          date: String(a.date ?? ''),
+          players: pl,
+          scores: sanitizeScores(a.scores)
+        };
+      }).filter(Boolean);
+    }
+
+    // 只收得下合法的 `場次_隊伍` → 兩位數以內的分數
+    function sanitizeScores(raw) {
+      const out = {};
+      if (!raw || typeof raw !== 'object') return out;
+      Object.entries(raw).forEach(([k, v]) => {
+        if (!/^\d+_[12]$/.test(k)) return;
+        if (Number(k.split('_')[0]) >= matches.length) return;
+        const s = String(v).trim();
+        if (/^\d{1,2}$/.test(s)) out[k] = s;
+      });
+      return out;
+    }
+
+    function saveArchive() {
+      const input = document.getElementById('archiveName');
+      if (filledCount(scores) === 0) { toast('目前還沒有任何完成的場次'); return; }
+      const name = (input.value || '').trim().slice(0, 60) || `${dateStamp('/')} 場次`;
+      archives.unshift({
+        id: String(Date.now()),
+        name,
+        date: new Date().toISOString(),
+        players: { ...players },
+        scores: { ...scores }
+      });
+      saveArchives();
+      input.value = '';
+      renderArchives();
+      if (confirm(`已存檔「${name}」。\n要順便清空目前分數，開始新的一場嗎？`)) {
+        scores = {};
+        saveScores();
+        renderMatches();
+        renderArchives();
+      }
+    }
+
+    function loadArchive(id) {
+      const a = archives.find(x => x.id === id);
+      if (!a) return;
+      if (!confirm(`載入「${a.name}」會覆蓋目前的選手名單與分數，確定嗎？`)) return;
+      Object.keys(players).forEach(c => { players[c] = a.players[c] ?? ''; });
+      scores = { ...a.scores };
+      savePlayers();
+      saveScores();
+      renderMatches();
+      renderPlayers();
+      renderArchives();
+      toast(`已載入「${a.name}」`);
+    }
+
+    function deleteArchive(id) {
+      const a = archives.find(x => x.id === id);
+      if (!a) return;
+      if (!confirm(`確定要刪除存檔「${a.name}」嗎？`)) return;
+      archives = archives.filter(x => x.id !== id);
+      saveArchives();
+      renderArchives();
+      toast('已刪除');
+    }
+
+    function renderArchives() {
+      const el = document.getElementById('archives');
+      const list = archives.length
+        ? archives.map(a => {
+          const top = calcStats(a.scores, a.players)[0];
+          const champ = top && top.wins > 0 ? `冠軍 ${top.code} ${top.name}` : '尚無勝場';
+          const d = a.date ? new Date(a.date) : null;
+          const when = d && !isNaN(d)
+            ? `${d.getFullYear()}/${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+            : '';
+          return `<div class="archive-card">
+        <div class="archive-info">
+          <div class="archive-name">${esc(a.name)}</div>
+          <div class="archive-meta">${when} · 完成 ${filledCount(a.scores)}/${matches.length} 場 · ${esc(champ)}</div>
+        </div>
+        <div class="archive-actions">
+          <button class="btn btn-ghost" onclick="loadArchive('${a.id}')">載入</button>
+          <button class="btn btn-ghost btn-danger" onclick="deleteArchive('${a.id}')">刪除</button>
+        </div>
+      </div>`;
+        }).join('')
+        : '<div class="empty-hint">還沒有任何存檔紀錄</div>';
+
+      el.innerHTML = `<div class="save-box">
+    <div class="section-title">存成一筆紀錄</div>
+    <div class="save-row">
+      <input id="archiveName" class="text-input" maxlength="60" placeholder="名稱（留空則用今天日期）">
+      <button class="btn" onclick="saveArchive()">存檔</button>
+    </div>
+    <div class="hint">目前完成 ${filledCount(scores)}/${matches.length} 場。存檔會保留這份分數與選手名單，之後可隨時載入回來。</div>
+  </div>
+  <div class="section-title">已存檔的場次（${archives.length}）</div>
+  ${list}
+  <div class="section-title" style="margin-top:1.5rem">備份與轉移</div>
+  <div class="btn-row">
+    <button class="btn btn-ghost" onclick="exportBackup()">⬇️ 匯出 JSON 備份</button>
+    <button class="btn btn-ghost" onclick="document.getElementById('importFile').click()">⬆️ 匯入 JSON</button>
+  </div>
+  <div class="hint">備份檔包含選手名單、目前分數與所有存檔紀錄，可用來換裝置或換瀏覽器。</div>`;
+    }
+
+    /* ---------- 匯出 / 匯入 ---------- */
+
+    function exportBackup() {
+      const data = {
+        app: 'dupr-scoreboard',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        players,
+        scores,
+        archives
+      };
+      download(`dupr-backup-${dateStamp()}.json`,
+        new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+      toast('已匯出備份檔');
+    }
+
+    function importBackup(input) {
+      const file = input.files && input.files[0];
+      input.value = '';   // 同一個檔案再選一次也要觸發 change
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onerror = () => toast('讀取檔案失敗');
+      reader.onload = () => {
+        let data;
+        try { data = JSON.parse(reader.result); } catch (e) { toast('檔案格式錯誤，無法解析'); return; }
+        if (!data || typeof data !== 'object') { toast('檔案內容不是有效的備份'); return; }
+        if (!confirm('匯入會覆蓋目前的選手名單與分數，存檔紀錄則會合併（相同紀錄以檔案為準）。確定嗎？')) return;
+
+        if (data.players && typeof data.players === 'object') {
+          Object.keys(players).forEach(c => {
+            players[c] = typeof data.players[c] === 'string' ? data.players[c] : '';
+          });
+          savePlayers();
+        }
+        if (data.scores && typeof data.scores === 'object') {
+          scores = sanitizeScores(data.scores);
+          saveScores();
+        }
+        if (Array.isArray(data.archives)) {
+          const byId = new Map(archives.map(a => [a.id, a]));
+          normalizeArchives(data.archives).forEach(a => byId.set(a.id, a));
+          archives = [...byId.values()].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+          saveArchives();
+        }
+        renderMatches();
+        renderPlayers();
+        renderArchives();
+        toast('匯入完成');
+      };
+      reader.readAsText(file);
+    }
+
+    /* ---------- 分享排名 ---------- */
+
+    // 並列判定與 renderRanking() 一致：勝場 / 得失分差 / 總得分三項全同才同名次
+    function rankedStats() {
+      let rank = 0, prev = null;
+      return calcStats().map((s, i) => {
+        const key = `${s.wins}_${s.pf - s.pa}_${s.pf}`;
+        if (key !== prev) { rank = i + 1; prev = key; }
+        return { ...s, rank, diff: s.pf - s.pa };
+      });
+    }
+
+    function rankingText() {
+      const lines = [
+        `🏓 DUPR 8人制記分板 ${dateStamp('/')}`,
+        `完成 ${filledCount(scores)}/${matches.length} 場`,
+        ''
+      ];
+      rankedStats().forEach(s => {
+        const d = s.diff > 0 ? `+${s.diff}` : String(s.diff);
+        lines.push(`${String(s.rank).padStart(2, ' ')}. ${s.code} ${s.name}　${s.wins}勝${s.losses}敗　得${s.pf} 失${s.pa} 差${d}`);
+      });
+      return lines.join('\n');
+    }
+
+    async function copyRanking() {
+      const text = rankingText();
+      try {
+        await navigator.clipboard.writeText(text);
+        toast('排名已複製到剪貼簿');
+        return;
+      } catch (e) { }
+      // file:// 或舊瀏覽器沒有 clipboard API，退回 execCommand
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { }
+      ta.remove();
+      toast(ok ? '排名已複製到剪貼簿' : '複製失敗，請手動選取文字');
+    }
+
+    // 用 canvas 畫排名表輸出 PNG。固定淺色配色，確保分享出去在任何裝置都好讀
+    function downloadRankingImage() {
+      const rows = rankedStats();
+      const F = '"Noto Sans TC", "Microsoft JhengHei", -apple-system, BlinkMacSystemFont, sans-serif';
+      const W = 720, DPR = 2, PAD = 28, HEAD = 100, ROW = 48;
+      const H = HEAD + 40 + rows.length * ROW + 44;
+
+      const cv = document.createElement('canvas');
+      cv.width = W * DPR;
+      cv.height = H * DPR;
+      const g = cv.getContext('2d');
+      g.scale(DPR, DPR);
+      g.fillStyle = '#ffffff';
+      g.fillRect(0, 0, W, H);
+      g.textBaseline = 'middle';
+
+      g.fillStyle = '#1a1a1a';
+      g.font = `700 28px ${F}`;
+      g.textAlign = 'left';
+      g.fillText('🏓 DUPR 8人制記分板', PAD, 42);
+      g.fillStyle = '#6b6b6b';
+      g.font = `400 16px ${F}`;
+      g.fillText(`${dateStamp('/')} · 完成 ${filledCount(scores)}/${matches.length} 場`, PAD, 74);
+
+      const C = { rank: 52, name: 92, wins: 380, losses: 440, pf: 512, pa: 584, diff: 664 };
+      const hy = HEAD + 14;
+      g.font = `600 15px ${F}`;
+      g.textAlign = 'left';
+      g.fillText('選手', C.name, hy);
+      g.textAlign = 'center';
+      g.fillText('名次', C.rank, hy);
+      g.fillText('勝', C.wins, hy);
+      g.fillText('敗', C.losses, hy);
+      g.fillText('得分', C.pf, hy);
+      g.fillText('失分', C.pa, hy);
+      g.fillText('差', C.diff, hy);
+
+      g.strokeStyle = '#cfcfcf';
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(PAD, HEAD + 32);
+      g.lineTo(W - PAD, HEAD + 32);
+      g.stroke();
+
+      rows.forEach((s, i) => {
+        const top = HEAD + 40 + i * ROW, mid = top + ROW / 2;
+        if (s.code === 'E') {
+          g.fillStyle = '#e8f5e9';
+          g.fillRect(PAD, top, W - PAD * 2, ROW);
+        }
+        if (s.rank <= 3) {
+          g.fillStyle = s.rank === 1 ? '#ffd700' : s.rank === 2 ? '#c0c0c0' : '#cd7f32';
+          g.beginPath();
+          g.arc(C.rank, mid, 15, 0, Math.PI * 2);
+          g.fill();
+          g.fillStyle = s.rank === 3 ? '#ffffff' : '#1a1a1a';
+        } else {
+          g.fillStyle = '#1a1a1a';
+        }
+        g.font = `700 16px ${F}`;
+        g.textAlign = 'center';
+        g.fillText(String(s.rank), C.rank, mid);
+
+        g.fillStyle = '#1a1a1a';
+        g.font = `600 17px ${F}`;
+        g.textAlign = 'left';
+        g.fillText(`${s.code}  ${s.name}`, C.name, mid, 260);
+
+        g.font = `400 16px ${F}`;
+        g.textAlign = 'center';
+        g.fillText(String(s.wins), C.wins, mid);
+        g.fillText(String(s.losses), C.losses, mid);
+        g.fillText(String(s.pf), C.pf, mid);
+        g.fillText(String(s.pa), C.pa, mid);
+        g.fillStyle = s.diff > 0 ? '#2d6a4f' : s.diff < 0 ? '#c0392b' : '#1a1a1a';
+        g.font = `700 16px ${F}`;
+        g.fillText(s.diff > 0 ? `+${s.diff}` : String(s.diff), C.diff, mid);
+
+        g.strokeStyle = '#ececec';
+        g.lineWidth = 1;
+        g.beginPath();
+        g.moveTo(PAD, top + ROW + 0.5);
+        g.lineTo(W - PAD, top + ROW + 0.5);
+        g.stroke();
+      });
+
+      g.fillStyle = '#9a9a9a';
+      g.font = `400 13px ${F}`;
+      g.textAlign = 'center';
+      g.fillText('排名規則：勝場 → 得失分差 → 總得分', W / 2, H - 24);
+
+      cv.toBlob(b => {
+        if (!b) { toast('圖片產生失敗'); return; }
+        download(`dupr-排名-${dateStamp()}.png`, b);
+        toast('已下載排名圖片');
+      }, 'image/png');
     }
 
     renderMatches();
