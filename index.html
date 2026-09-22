@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DUPR 8人制記分板</title>
+<style>
+:root {
+  --bg: #f7f7f5;
+  --card: #ffffff;
+  --text: #1a1a1a;
+  --muted: #6b6b6b;
+  --accent: #2d6a4f;
+  --accent-light: #d8f3dc;
+  --border: #e0e0e0;
+  --input-bg: #fffde7;
+  --rank1: #ffd700;
+  --rank2: #c0c0c0;
+  --rank3: #cd7f32;
+  --highlight: #e8f5e9;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121212;
+    --card: #1e1e1e;
+    --text: #e0e0e0;
+    --muted: #999;
+    --accent: #52b788;
+    --accent-light: #1b4332;
+    --border: #333;
+    --input-bg: #2a2a1a;
+    --highlight: #1b3a2a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121212;
+  --card: #1e1e1e;
+  --text: #e0e0e0;
+  --muted: #999;
+  --accent: #52b788;
+  --accent-light: #1b4332;
+  --border: #333;
+  --input-bg: #2a2a1a;
+  --highlight: #1b3a2a;
+}
+* { box-sizing: inherit; margin: 0; padding: 0; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+html, body { height: 100%; }
+body {
+  font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+.container { max-width: 680px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 0.25rem;
+}
+.subtitle {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-bottom: 1.5rem;
+}
+.tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1.25rem;
+  border-bottom: 2px solid var(--border);
+}
+.tab {
+  flex: 1;
+  padding: 0.6rem 0;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  color: var(--muted);
+  transition: all 0.15s;
+  background: none;
+  border-top: none; border-left: none; border-right: none;
+}
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* Match card */
+.match-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.6rem;
+}
+.match-num {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.4rem;
+}
+.match-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.team {
+  flex: 1;
+  text-align: center;
+}
+.team-codes { font-weight: 700; font-size: 1rem; }
+.team-names { font-size: 0.75rem; color: var(--muted); }
+.score-input {
+  width: 3.2rem;
+  padding: 0.4rem 0;
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.score-input:focus { border-color: var(--accent); }
+.vs { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+.winner { color: var(--accent); }
+
+/* Ranking */
+.rank-table { width: 100%; border-collapse: collapse; }
+.rank-table th {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-weight: 600;
+  text-align: center;
+  padding: 0.5rem 0.3rem;
+  border-bottom: 2px solid var(--border);
+}
+.rank-table td {
+  text-align: center;
+  padding: 0.55rem 0.3rem;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+.rank-table tr.me { background: var(--highlight); }
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem; height: 1.6rem;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+.rank-1 { background: var(--rank1); color: #1a1a1a; }
+.rank-2 { background: var(--rank2); color: #1a1a1a; }
+.rank-3 { background: var(--rank3); color: #fff; }
+.name-cell { text-align: left !important; font-weight: 600; }
+.pos-val { font-weight: 700; color: var(--accent); }
+.neg-val { color: #c0392b; }
+
+/* Players grid */
+.players-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.player-chip {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.player-code {
+  width: 1.6rem; height: 1.6rem;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--accent-light);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+.player-name { font-size: 0.85rem; }
+.player-input {
+  font-size: 0.85rem;
+  font-family: inherit;
+  border: none;
+  border-bottom: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  padding: 0.15rem 0;
+  width: 5rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.player-input:focus { border-bottom-color: var(--accent); }
+.reset-btn {
+  display: block;
+  margin: 1.5rem auto 0;
+  padding: 0.5rem 1.5rem;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.reset-btn:hover { border-color: #c0392b; color: #c0392b; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🏓 DUPR 8人制記分板</h1>
+  <p class="subtitle">TYNP DWA II</p>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showPanel('matches')">賽程記分</button>
+    <button class="tab" onclick="showPanel('ranking')">排名</button>
+    <button class="tab" onclick="showPanel('players')">選手</button>
+  </div>
+
+  <div id="matches" class="panel active"></div>
+  <div id="ranking" class="panel"></div>
+  <div id="players" class="panel"></div>
+</div>
+
+<script>
+const players = {
+  A: 'Yulia', B: '新凱', C: '萱晴', D: '柔翰',
+  E: 'Ellis', F: '煒隆', G: '盈盈', H: 'Doris'
+};
+
+const matches = [
+  ['H','A','B','D'], ['C','G','E','F'], ['E','B','G','A'],
+  ['H','C','D','F'], ['B','F','D','E'], ['H','G','A','C'],
+  ['H','D','E','G'], ['F','C','A','B'], ['H','B','C','E'],
+  ['D','A','F','G'], ['A','E','C','D'], ['H','F','G','B'],
+  ['G','D','B','C'], ['H','E','F','A']
+];
+
+let scores = {};
+try {
+  const saved = localStorage.getItem('dupr_scores');
+  if (saved) scores = JSON.parse(saved);
+  const savedNames = localStorage.getItem('dupr_players');
+  if (savedNames) Object.assign(players, JSON.parse(savedNames));
+} catch(e) {}
+
+function saveScores() {
+  try { localStorage.setItem('dupr_scores', JSON.stringify(scores)); } catch(e) {}
+}
+
+function showPanel(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+  if (id === 'ranking') renderRanking();
+}
+
+function renderMatches() {
+  const el = document.getElementById('matches');
+  el.innerHTML = matches.map((m, i) => {
+    const num = String(i+1).padStart(2,'0');
+    const s1 = scores[`${i}_1`] ?? '';
+    const s2 = scores[`${i}_2`] ?? '';
+    const w1 = s1 !== '' && s2 !== '' && Number(s1) > Number(s2);
+    const w2 = s1 !== '' && s2 !== '' && Number(s2) > Number(s1);
+    return `<div class="match-card">
+      <div class="match-num">第 ${num} 場</div>
+      <div class="match-row">
+        <div class="team${w1?' winner':''}">
+          <div class="team-codes">${m[0]} - ${m[1]}</div>
+          <div class="team-names">${players[m[0]]} / ${players[m[1]]}</div>
+        </div>
+        <input type="number" class="score-input" min="0" max="99"
+          value="${s1}" oninput="updateScore(${i},1,this.value)"
+          inputmode="numeric">
+        <span class="vs">:</span>
+        <input type="number" class="score-input" min="0" max="99"
+          value="${s2}" oninput="updateScore(${i},2,this.value)"
+          inputmode="numeric">
+        <div class="team${w2?' winner':''}">
+          <div class="team-codes">${m[2]} - ${m[3]}</div>
+          <div class="team-names">${players[m[2]]} / ${players[m[3]]}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('') + '<button class="reset-btn" onclick="resetAll()">清除所有分數</button>';
+}
+
+function updateScore(matchIdx, team, val) {
+  if (val === '') { delete scores[`${matchIdx}_${team}`]; }
+  else { scores[`${matchIdx}_${team}`] = val; }
+  saveScores();
+  renderMatches();
+}
+
+function resetAll() {
+  if (confirm('確定要清除所有分數嗎？')) {
+    scores = {};
+    saveScores();
+    renderMatches();
+  }
+}
+
+function calcStats() {
+  const stats = {};
+  Object.keys(players).forEach(c => {
+    stats[c] = { code: c, name: players[c], wins: 0, losses: 0, pf: 0, pa: 0 };
+  });
+
+  matches.forEach((m, i) => {
+    const s1 = scores[`${i}_1`];
+    const s2 = scores[`${i}_2`];
+    if (s1 === undefined || s2 === undefined || s1 === '' || s2 === '') return;
+    const n1 = Number(s1), n2 = Number(s2);
+    const team1 = [m[0], m[1]], team2 = [m[2], m[3]];
+
+    team1.forEach(p => { stats[p].pf += n1; stats[p].pa += n2; });
+    team2.forEach(p => { stats[p].pf += n2; stats[p].pa += n1; });
+
+    if (n1 > n2) {
+      team1.forEach(p => stats[p].wins++);
+      team2.forEach(p => stats[p].losses++);
+    } else if (n2 > n1) {
+      team2.forEach(p => stats[p].wins++);
+      team1.forEach(p => stats[p].losses++);
+    }
+  });
+
+  return Object.values(stats).sort((a, b) => {
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    const da = a.pf - a.pa, db = b.pf - b.pa;
+    if (db !== da) return db - da;
+    return b.pf - a.pf;
+  });
+}
+
+function renderRanking() {
+  const sorted = calcStats();
+  const el = document.getElementById('ranking');
+  let rank = 0, prev = null;
+  const rows = sorted.map((s, i) => {
+    const key = `${s.wins}_${s.pf - s.pa}_${s.pf}`;
+    if (key !== prev) { rank = i + 1; prev = key; }
+    const diff = s.pf - s.pa;
+    const diffStr = diff > 0 ? `+${diff}` : String(diff);
+    const diffClass = diff > 0 ? 'pos-val' : diff < 0 ? 'neg-val' : '';
+    const rankBadge = rank <= 3
+      ? `<span class="rank-badge rank-${rank}">${rank}</span>`
+      : rank;
+    const me = s.code === 'E' ? ' class="me"' : '';
+    return `<tr${me}>
+      <td>${rankBadge}</td>
+      <td class="name-cell">${s.code} ${s.name}</td>
+      <td>${s.wins}</td>
+      <td>${s.losses}</td>
+      <td>${s.pf}</td>
+      <td>${s.pa}</td>
+      <td class="${diffClass}">${diffStr}</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `<table class="rank-table">
+    <thead><tr>
+      <th>名次</th><th>選手</th><th>勝</th><th>敗</th><th>得分</th><th>失分</th><th>差</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div style="margin-top:1.25rem;padding:1rem;background:var(--card);border:1px solid var(--border);border-radius:10px;font-size:0.78rem;color:var(--muted);line-height:1.7;">
+    <div style="font-weight:700;color:var(--text);margin-bottom:0.4rem;font-size:0.85rem;">欄位說明</div>
+    <div><b style="color:var(--text)">勝</b>：該選手所在隊伍得分高於對手的場數</div>
+    <div><b style="color:var(--text)">敗</b>：該選手所在隊伍得分低於對手的場數</div>
+    <div><b style="color:var(--text)">得分</b>：該選手所有場次中，所在隊伍的得分加總</div>
+    <div><b style="color:var(--text)">失分</b>：該選手所有場次中，對手隊伍的得分加總</div>
+    <div><b style="color:var(--text)">差</b>：得分 − 失分，正值代表總體得分優勢</div>
+    <div style="margin-top:0.5rem;border-top:1px solid var(--border);padding-top:0.5rem;">
+      <b style="color:var(--text)">排名規則</b>：優先比勝場數 → 相同時比得失分差 → 再相同比總得分
+    </div>
+  </div>`;
+}
+
+function savePlayers() {
+  try { localStorage.setItem('dupr_players', JSON.stringify(players)); } catch(e) {}
+}
+
+function updatePlayer(code, val) {
+  players[code] = val;
+  savePlayers();
+  renderMatches();
+}
+
+function renderPlayers() {
+  const el = document.getElementById('players');
+  el.innerHTML = '<div class="players-grid">' +
+    Object.entries(players).map(([c, n]) =>
+      `<div class="player-chip">
+        <span class="player-code">${c}</span>
+        <input class="player-input" value="${n}"
+          onchange="updatePlayer('${c}',this.value)"
+          onblur="updatePlayer('${c}',this.value)">
+      </div>`
+    ).join('') + '</div>';
+}
+
+renderMatches();
+renderPlayers();
+</script>
+</body>
+</html>
