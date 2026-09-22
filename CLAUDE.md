@@ -24,7 +24,7 @@ python -m http.server 8000   # 然後開 http://localhost:8000
 
 ## 架構
 
-**渲染模型**：三個 panel（`#matches`、`#ranking`、`#players`）各由一個 `renderXxx()` 函式用字串模板整批寫入 `innerHTML`，沒有 diff、沒有框架。事件全靠 inline `onclick` / `oninput` / `onchange` 呼叫全域函式，所以**所有被 HTML 引用的函式都必須留在全域作用域**。
+**渲染模型**：三個 panel（`#matches`、`#ranking`、`#players`）各由一個 `renderXxx()` 函式用字串模板整批寫入 `innerHTML`，沒有 diff、沒有框架。唯一的例外是 `updateWinner()`——記分時的局部更新（見下方「已知取捨」）。事件全靠 inline `onclick` / `oninput` / `onchange` 呼叫全域函式，所以**所有被 HTML 引用的函式都必須留在全域作用域**。
 
 **狀態**：三個模組層級變數即全部狀態。
 
@@ -45,7 +45,7 @@ python -m http.server 8000   # 然後開 http://localhost:8000
 ## 已知取捨
 
 - `renderRanking()` 第 366 行把 `s.code === 'E'` 寫死成「我」的高亮列（`tr.me`）。這是 repo 擁有者的固定代號，改動選手對應時要一併留意。
-- `updateScore()` 每次 `oninput` 都重繪整個賽程列表，因此輸入框每打一個字就會失去焦點。這是刻意換來「勝方即時標示」的簡化作法；若要改成不重繪，需要改成只更新受影響的 `.team` class。
+- **輸入分數時不可重繪整份賽程**。`updateScore()` 刻意只呼叫 `updateWinner(matchIdx)`，透過 `data-match` / `data-team` 定位並 toggle `.winner` class。早期版本在 `oninput` 裡呼叫 `renderMatches()`，導致輸入框被換掉、打第一個字就失去焦點（兩位數分數無法輸入）。之後若要在記分時反映其他狀態，也請走同樣的局部更新路徑。
 - `showPanel()` 依賴隱含的全域 `event` 物件取得被點擊的 tab。在 Chrome / Safari 可用，Firefox 嚴格模式下會失效。
 - 選手名稱與分數都以未轉義的方式插入 `innerHTML`。這是個人用的離線工具（資料只存在本機 localStorage），但若之後要接受外部輸入，需先加上 escape。
 

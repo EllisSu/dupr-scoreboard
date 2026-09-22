@@ -277,12 +277,10 @@ function renderMatches() {
     const num = String(i+1).padStart(2,'0');
     const s1 = scores[`${i}_1`] ?? '';
     const s2 = scores[`${i}_2`] ?? '';
-    const w1 = s1 !== '' && s2 !== '' && Number(s1) > Number(s2);
-    const w2 = s1 !== '' && s2 !== '' && Number(s2) > Number(s1);
-    return `<div class="match-card">
+    return `<div class="match-card" data-match="${i}">
       <div class="match-num">第 ${num} 場</div>
       <div class="match-row">
-        <div class="team${w1?' winner':''}">
+        <div class="team" data-team="1">
           <div class="team-codes">${m[0]} - ${m[1]}</div>
           <div class="team-names">${players[m[0]]} / ${players[m[1]]}</div>
         </div>
@@ -293,20 +291,33 @@ function renderMatches() {
         <input type="number" class="score-input" min="0" max="99"
           value="${s2}" oninput="updateScore(${i},2,this.value)"
           inputmode="numeric">
-        <div class="team${w2?' winner':''}">
+        <div class="team" data-team="2">
           <div class="team-codes">${m[2]} - ${m[3]}</div>
           <div class="team-names">${players[m[2]]} / ${players[m[3]]}</div>
         </div>
       </div>
     </div>`;
   }).join('') + '<button class="reset-btn" onclick="resetAll()">清除所有分數</button>';
+  matches.forEach((m, i) => updateWinner(i));
+}
+
+// 只切換單一場次的勝方標示，避免重繪整份賽程導致輸入框失去焦點
+function updateWinner(matchIdx) {
+  const card = document.querySelector(`.match-card[data-match="${matchIdx}"]`);
+  if (!card) return;
+  const s1 = scores[`${matchIdx}_1`] ?? '';
+  const s2 = scores[`${matchIdx}_2`] ?? '';
+  const both = s1 !== '' && s2 !== '';
+  const n1 = Number(s1), n2 = Number(s2);
+  card.querySelector('[data-team="1"]').classList.toggle('winner', both && n1 > n2);
+  card.querySelector('[data-team="2"]').classList.toggle('winner', both && n2 > n1);
 }
 
 function updateScore(matchIdx, team, val) {
   if (val === '') { delete scores[`${matchIdx}_${team}`]; }
   else { scores[`${matchIdx}_${team}`] = val; }
   saveScores();
-  renderMatches();
+  updateWinner(matchIdx);
 }
 
 function resetAll() {
